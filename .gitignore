@@ -1,0 +1,109 @@
+######################################################################
+# Build Tools
+
+.gradle
+/build/
+!gradle/wrapper/gradle-wrapper.jar
+
+target/
+!.mvn/wrapper/maven-wrapper.jar
+
+# Maven
+*.jar.original
+*.war
+*.ear
+dependency-reduced-pom.xml
+
+######################################################################
+# IDE
+
+### STS ###
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings
+.springBeans
+.springBeans.*/
+
+### IntelliJ IDEA ###
+.idea/
+*.iws
+*.iml
+*.ipr
+out/
+
+### VS Code ###
+.vscode/
+
+### JRebel ###
+rebel.xml
+
+### NetBeans ###
+nbproject/private/
+nbbuild/
+dist/
+nbdist/
+.nb-gradle/
+
+######################################################################
+# OS
+
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+######################################################################
+# Logs
+
+logs/
+*.log
+*.log.*
+
+######################################################################
+# Environment & Config
+
+.env
+.env.*
+!.env.example
+application-local.yml
+application-local.properties
+bootstrap-local.yml
+bootstrap-local.properties
+
+######################################################################
+# Temp & Cache
+
+*.tmp
+*.temp
+*.cache
+*.swp
+*.swo
+*~
+.attach_pid*
+
+######################################################################
+# Node (前端)
+
+node_modules/
+dist/
+.npm/
+.yarn/
+package-lock.json
+yarn.lock
+
+######################################################################
+# Others
+
+*.xml.versionsBackup
+*.bak
+*.orig
+
+# Nacos data
+nacos/data/
+
+!*/build/*.java
+!*/build/*.html
+!*/build/*.xml

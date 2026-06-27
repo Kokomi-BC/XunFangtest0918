@@ -1,0 +1,18 @@
+{
+    "auth": {
+        "identity": {
+            "methods": [
+                "password"
+            ],
+            "password": {
+                "user": {
+                    "name": "gzlg017",
+                    "password": "Hngy@123456",
+                    "domain": {
+                        "name": "sziit2024"
+                    }
+                }
+            }
+        }
+    }
+}
