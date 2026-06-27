@@ -41,6 +41,12 @@ public class DMEUtil {
     private static final String account = "sziit2024";
     private static final String hwyProjectName = "cn-north-4";
 
+    /** 当前操作用户名 */
+    public static final String usingUserName = userName;
+
+    /** 当前操作用户 ID（域账号） */
+    public static final String usingUserId = account;
+
     // ==================== URL 常量 ====================
     /** iDME 服务根路径（含 /services 后缀） */
     public static final String projectUrl =
@@ -57,6 +63,13 @@ public class DMEUtil {
 
     /** 租户 API 前缀 */
     public static final String tenantApiService = "/rdm/common/api/Tenant/";
+
+    /** iDME 基础 URL（不含 /services 后缀，用于文件上传/下载等） */
+    public static final String basicUrl =
+            "http://642f01d8-ca51-4a28-9000-904a4f1e5072.xdm.runtime.cn-north-4.huaweicloud-idme.com/rdm_9fc851035ebc468fb3e71455d6664f24_app";
+
+    /** iDME 应用 ID */
+    public static final String applicationId = "rdm_9fc851035ebc468fb3e71455d6664f24_app";
 
     // ==================== Token ====================
 
@@ -120,7 +133,9 @@ public class DMEUtil {
         if (StringUtils.isEmpty(dmeT)) {
             return null;
         }
-        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'.000+0000'");
+        // iDME 格式: 2026-06-27T10:36:55.849+0000
+        // SimpleDateFormat Z 匹配 +0000（RFC 822 timezone）
+        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSZ");
         Calendar c = Calendar.getInstance();
         c.setTime(sdf.parse(dmeT));
         c.add(Calendar.HOUR, 8);
