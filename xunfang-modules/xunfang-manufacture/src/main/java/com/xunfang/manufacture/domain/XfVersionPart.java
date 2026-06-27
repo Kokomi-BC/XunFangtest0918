@@ -79,11 +79,11 @@ public class XfVersionPart extends XfPart {
                             if (fn != null) this.fileName = fn.toString();
                             Object fid = fileMap.get("id");
                             if (fid != null) {
-                                this.fileDownloadUrl = "/manufacture/file/download/"
-                                        + XfPart.modelName + "/"
-                                        + XfPart.modelNumber + "/"
-                                        + this.id + "/"
-                                        + fid;
+                                this.fileDownloadUrl = "/manufacture/file/download"
+                                        + "?model_name=" + XfPart.modelName
+                                        + "&model_number=" + XfPart.modelCode
+                                        + "&instance_id=" + this.id
+                                        + "&file_id=" + fid;
                             }
                         }
                     }

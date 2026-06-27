@@ -21,6 +21,9 @@ public class XfPart extends BaseEntity {
     /** iDME 模型名称（用于文件上传） */
     public static final String modelName = "XfPart17";
 
+    /** iDME 模型 code（用于文件下载 API，与 modelName 不同） */
+    public static final String modelCode = "DM08699761";
+
     // ==================== 业务字段 ====================
 
     /** 主键 ID */

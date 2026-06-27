@@ -1,5 +1,6 @@
 package com.xunfang.manufacture.controller;
 
+import com.xunfang.manufacture.domain.XfPart;
 import com.xunfang.manufacture.util.DMEUtil;
 import com.xunfang.manufacture.util.RedisCache1;
 import org.apache.http.HttpResponse;
@@ -46,31 +47,36 @@ public class FileProxyController {
     }
 
     /**
-     * 文件下载代理（路径参数避免查询串长度限制）
+     * 文件下载代理（使用查询参数，参数名与 iDME 原生 API 保持一致）
      */
-    @GetMapping("/download/{modelName}/{modelNumber}/{instanceId}/{fileId}")
+    @GetMapping("/download")
     public void stream(
-            @PathVariable String modelName,
-            @PathVariable String modelNumber,
-            @PathVariable String instanceId,
-            @PathVariable String fileId,
-            @RequestParam(value = "attribute_name", defaultValue = "File") String attributeName,
-            @RequestParam(value = "filename", required = false) String filename,
+            HttpServletRequest request,
             HttpServletResponse response) throws Exception {
+
+        String modelName = request.getParameter("model_name");
+        String modelNumber = request.getParameter("model_number");
+        String instanceId = request.getParameter("instance_id");
+        String fileId = request.getParameter("file_id");
+        String attributeName = request.getParameter("attribute_name");
+        if (attributeName == null || attributeName.isEmpty()) attributeName = "File";
+        String filename = request.getParameter("filename");
 
         final String token = (String) redisCache1.get(DMEUtil.usingUserName + DMEUtil.usingUserId + "_dmetoken");
 
-        // 1) 拼接 iDME 下载 URL
-        String dlUrl = DMEUtil.basicUrl + "/api/v2/file/downloadFile"
+        // 1) 拼接 iDME 下载 URL（路径与参数与 iDME 浏览器请求一致）
+        String dlUrl = DMEUtil.basicUrl + "/services/rdm/basic/api/v2/file/downloadFile"
                 + "?model_name=" + URLEncoder.encode(modelName, StandardCharsets.UTF_8.name())
-                + "&model_number=" + URLEncoder.encode(modelNumber, StandardCharsets.UTF_8.name())
+                + "&model_number=" + URLEncoder.encode(XfPart.modelCode, StandardCharsets.UTF_8.name())
                 + "&instance_id=" + URLEncoder.encode(instanceId, StandardCharsets.UTF_8.name())
-                + "&application_id=" + URLEncoder.encode(DMEUtil.applicationId,
+                + "&application_id=" + URLEncoder.encode(DMEUtil.appIdShort,
                         StandardCharsets.UTF_8.name())
                 + "&is_master_attr=0"
-                + "&attribute_name=" + URLEncoder.encode(attributeName, StandardCharsets.UTF_8.name())
+                + "&attribute_name=" + URLEncoder.encode(
+                        (attributeName != null && !attributeName.isEmpty()) ? attributeName : "file",
+                        StandardCharsets.UTF_8.name())
                 + "&file_ids=" + URLEncoder.encode(fileId, StandardCharsets.UTF_8.name())
-                + "&download_type=DIRECT_LINK"
+                + "&download_type=OUTBOUND_LINK"
                 + "&tenant_id=-1";
 
         logger.info("代理文件下载: fileId={}, url={}", fileId, dlUrl);

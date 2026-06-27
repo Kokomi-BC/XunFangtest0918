@@ -1,5 +1,6 @@
 package com.xunfang.manufacture.util;
 
+import com.xunfang.manufacture.domain.XfPart;
 import org.apache.http.HttpEntity;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpPost;
@@ -12,6 +13,8 @@ import org.json.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.web.multipart.MultipartFile;
+
+import java.net.URLEncoder;
 
 /**
  * 文件上传工具
@@ -41,15 +44,25 @@ public class UploadUtils {
             return null;
         }
 
+        // 拼接查询参数（与 iDME 浏览器请求一致）
+        String fullUrl = uploadUrl
+                + "?applicationId=" + URLEncoder.encode(DMEUtil.appIdShort, "UTF-8")
+                + "&username=" + URLEncoder.encode(
+                        DMEUtil.usingUserName + "@sxxgyrj.orgid.top " + DMEUtil.usingUserId, "UTF-8")
+                + "&modelNumber=" + URLEncoder.encode(XfPart.modelCode, "UTF-8")
+                + "&modelName=" + URLEncoder.encode(modelName, "UTF-8")
+                + "&attributeName=File"
+                + "&storageType=0"
+                + "&exaAttr=1"
+                + "&encrypted=false";
+
         try (CloseableHttpClient client = HttpClients.createDefault()) {
-            HttpPost post = new HttpPost(uploadUrl);
+            HttpPost post = new HttpPost(fullUrl);
             post.setHeader("X-Auth-Token", token);
 
             MultipartEntityBuilder builder = MultipartEntityBuilder.create();
-            builder.addBinaryBody("file", file.getInputStream(),
+            builder.addBinaryBody("files", file.getInputStream(),
                     ContentType.APPLICATION_OCTET_STREAM, file.getOriginalFilename());
-            builder.addTextBody("model_number", modelNumber, ContentType.TEXT_PLAIN);
-            builder.addTextBody("model_name", modelName, ContentType.TEXT_PLAIN);
 
             HttpEntity entity = builder.build();
             post.setEntity(entity);
@@ -65,8 +78,7 @@ public class UploadUtils {
                     if (resJson.has("data")) {
                         org.json.JSONArray dataArr = resJson.getJSONArray("data");
                         if (dataArr.length() > 0) {
-                            JSONObject fileObj = dataArr.getJSONObject(0);
-                            return fileObj.optString("id");
+                            return dataArr.getString(0);
                         }
                     }
                     throw new RuntimeException("上传成功但未返回文件ID");

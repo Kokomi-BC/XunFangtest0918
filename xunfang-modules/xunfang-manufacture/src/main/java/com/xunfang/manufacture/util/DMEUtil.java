@@ -71,6 +71,9 @@ public class DMEUtil {
     /** iDME 应用 ID */
     public static final String applicationId = "rdm_9fc851035ebc468fb3e71455d6664f24_app";
 
+    /** iDME 应用 ID 短格式（用于文件下载 API） */
+    public static final String appIdShort = "9fc851035ebc468fb3e71455d6664f24";
+
     // ==================== Token ====================
 
     /**

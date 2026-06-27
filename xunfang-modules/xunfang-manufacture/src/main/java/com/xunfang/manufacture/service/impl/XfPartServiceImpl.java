@@ -282,7 +282,7 @@ public class XfPartServiceImpl implements IXfPartService {
         String url = DMEUtil.projectUrl + DMEUtil.executeApiUrl + "XfPart17/create";
 
         // 上传文件
-        String uploadUrl = DMEUtil.basicUrl + "/upload/uploadFile";
+        String uploadUrl = DMEUtil.basicUrl + "/services/rdm/basic/api/upload/uploadFile";
         String fileId = null;
         if (file != null && !file.isEmpty()) {
             fileId = UploadUtils.uploadOneFileToIDME(file, token, uploadUrl,
@@ -326,7 +326,7 @@ public class XfPartServiceImpl implements IXfPartService {
         // 1) 如有新文件先上传
         String fileId = null;
         if (file != null && !file.isEmpty()) {
-            String uploadUrl = DMEUtil.basicUrl + "/upload/uploadFile";
+            String uploadUrl = DMEUtil.basicUrl + "/services/rdm/basic/api/upload/uploadFile";
             fileId = UploadUtils.uploadOneFileToIDME(file, token, uploadUrl,
                     XfPart.modelNumber, XfPart.modelName);
         }

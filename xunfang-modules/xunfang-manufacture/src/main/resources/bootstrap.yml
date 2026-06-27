@@ -22,6 +22,10 @@ spring:
         file-extension: yml
         shared-configs:
           - application-${spring.profiles.active}.${spring.cloud.nacos.config.file-extension}
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 50MB
   redis:
     host: localhost
     port: 6379

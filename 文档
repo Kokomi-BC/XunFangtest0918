@@ -1,0 +1,1656 @@
+1. 工程准备与约定
+1.1 约定
+JSON 解析：fastjson。
+统一分页：TableDataInfo；统一出参：AjaxResult。
+HTTP：RequestUtil.requestsPost(url, body, token)。
+Token：从 Redis/DMEUtil 读取；项目 URL 前缀：DMEUtil.executeApiUrl / projectUrl / basicApiUrl / basicUrl。
+生命周期公共常量：业务编码 LCT00000009（示例，可配置）。
+1.2 目录结构（后端）
+com.xunfang.manufacture.domain
+  ├─ XfProductFamily.java
+  ├─ XfProduct.java
+  └─ XfVersionProduct.java   （继承 XfProduct，含 masterId / 工作状态 / 生命周期 / 附件等扩展）
+com.xunfang.manufacture.controller
+  ├─ XfProductFamilyController.java
+  └─ XfProductController.java
+com.xunfang.manufacture.service
+  ├─ IXfProductFamilyService.java
+  └─ IXfProductService.java
+com.xunfang.manufacture.service.impl
+  ├─ XfProductFamilyServiceImpl.java
+  └─ XfProductServiceImpl.java
+com.xunfang.manufacture.util
+  ├─ DMEUtil.java / RequestUtil.java / RedisUtils.java / DMERequestBuilder.java / DMEVersionRequestBuilder.java ...
+2.产品族模块实现步骤（逐方法落地）
+首先分别创建产品族管理的controller、Service接口、impl接口实现类等。
+在src/main/java/com/xunfang/manufacture/controller路径下创建名为XfProductFamilyController的控制类，如图：
+
+继承基础控制类
+
+
+BaseController这个类是 Web 层的通用数据处理基类，专门为项目中所有业务控制器（如产品族管理等控制器）提供 “通用基础功能”，子类控制器（如XfProductFamilyController）继承它后，不用再写 “日期转换、分页配置、响应包装” 这些重复代码，只需专注写 “查询、新增” 等业务逻辑，同时保证所有接口的日期处理、分页格式、响应格式完全统一。
+在com/xunfang/manufacture/service文件夹下创建名为IXfProductFamilyService的接口：
+
+
+
+
+在com/xunfang/manufacture/service/impl文件夹下创建名为XfProductFamilyServiceImpl的接口实现类：
+
+
+
+用implements关键字，让XfProductFamilyServiceImpl成为IXfProductFamilyService的接口实现类，把 IXfProductFamilyService接口中声明的所有方法（比如查询、新增的方法）在XfProductFamilyServiceImpl中都补充上具体的业务代码。
+
+
+2.1 查询列表（GET /manufacture/family/list）
+URL：DMEUtil.executeApiUrl + “/XfProductFamily/find/{pageSize}/{pageNum}”
+过滤：productFamilyNameCn, productFamilyNameEn → like；分页参数与 startPage() 对齐。
+返回：TableDataInfo（rows=data, total=pageInfo.totalRows）。
+回到Controller类，注入3个注解，同时声明服务层接口的成员变量，后续通过依赖注入获取服务层的实现对象，从而调用服务层的业务方法：
+
+以下是对3个注解的解释：
+（1）@RestController
+是 Spring 框架的注解，标记当前类为 “REST 风格的控制器”。它是 @Controller（声明类为 “控制器”，能接收 HTTP 请求）和 @ResponseBody（让方法返回值直接转为 JSON 等格式响应给前端，而非跳转页面）的 “组合注解”。加了 @RestController 后，这个类里的方法不用额外加 @ResponseBody，返回的对象会自动序列化为 JSON 给前端。
+（2）@RequestMapping(“/unit”)
+是 Spring 框架的注解，指定当前控制器处理的 “请求路径前缀”。
+比如这里写 @RequestMapping(“/family”)，那么这个控制器下所有接口的路径，都会以 /family开头。示例中 @GetMapping(“/list”) 的完整路径就是 http://xxx.com/family/list，方便对相关接口做路径分组。
+（3）@Resource
+是 Java 标准的注解，用于依赖注入。把 “服务层接口 IXfProductFamilyService的实现类” 注入到控制器里，这样控制器就能调用 xfProductFamilyService.selectXfProductFamilyById(…) 等服务层方法，实现 “控制层 → 服务层” 的调用。
+以下是后续编写控制类时需要用到的注解：
+注解	对应 HTTP 方法	核心语义	是否支持浏览器缓存
+@GetMapping	GET	从服务器查询 / 获取数据（只读）	是
+@PostMapping	POST	向服务器提交 / 创建新数据（写操作）	否
+@PutMapping	PUT	向服务器全量更新已有数据（写操作）	否
+@DeleteMapping	DELETE	从服务器删除已有数据（写操作）	否
+以下是产品族管理的控制类中，查询产品族列表的代码：
+
+查询Controller:
+
+    /**
+     * 查询产品族列表
+     */
+    @GetMapping("/list")
+    public TableDataInfo list(XfProductFamily xfProductFamily, HttpServletRequest request) throws Exception {
+        startPage();
+        return xfProductFamilyService.selectXfProductFamilyList(xfProductFamily,request);
+}
+若代码出现爆红，则把鼠标放在爆红处附近，按下alt+enter键可一键导入或创建方法，如下就会在IXfProductFamilyService接口中自动声明方法：
+
+
+查询Service:
+
+    /**
+     * 查询产品族列表
+     * 
+     * @param xfProductFamily 产品族
+     * @return 产品族集合
+     */
+public TableDataInfo selectXfProductFamilyList(XfProductFamily xfProductFamily, HttpServletRequest request) throws Exception;
+最后在接口实现类中注入@Service，@Autowired或@Resource注解并声明 DMEUtil 类型的成员变量：
+
+查询ServiceImpl:
+
+        /**
+     * 查询产品族列表
+     * 
+     * @param xfProductFamily 产品族
+     * @return 产品族
+     */
+    @Override
+    public TableDataInfo selectXfProductFamilyList(XfProductFamily xfProductFamily, HttpServletRequest request) throws Exception {
+        String url = DMEUtil.executeApiUrl+"/XfProductFamily/find/"+request.getParameter("pageSize")+"/"+request.getParameter("pageNum");
+        Map<String, String> operatorConfig = new HashMap<>();
+        operatorConfig.put("productFamilyNameCn", "like");
+        operatorConfig.put("productFamilyNameEn", "like");
+        List<DMEQueryCondition> conditions = DMEQueryConditionBuilder.buildConditions(xfProductFamily, operatorConfig);
+        JSONObject paramsJson = DMERequestBuilder.buildListQueryRequest(conditions);
+        DMEResponse<XfProductFamily> response = dmeClient.post(url, paramsJson,
+                new TypeReference<DMEResponse<XfProductFamily>>() {}
+        );
+        return TableDataUtils.buildTableData(response);
+    }
+2.2 查询单个产品详情（GET /manufacture/family/{id}）
+URL：DMEUtil.executeApiUrl + “/XfProductFamily/get”
+请求体：{“params”:{“id”:”xxx”}}；取 data[0] 返回。
+查询详情Controller:
+
+ /**
+   * 获取产品族详细信息
+   */
+  @GetMapping(value = "/{id}")
+  public AjaxResult getInfo(@PathVariable("id") String id) throws Exception {
+      return success(xfProductFamilyService.selectXfProductFamilyById(id));
+  }
+查询详情Service:
+
+  /**
+   * 查询产品族
+   * 
+   * @param id 产品族主键
+   * @return 产品族
+   */
+  public XfProductFamily selectXfProductFamilyById(String id) throws Exception;
+查询详情ServiceImpl:
+
+/**
+   * 查询产品族
+   * 
+   * @param id 产品族主键
+   * @return 产品族
+   */
+  @Override
+  public XfProductFamily selectXfProductFamilyById(String id) throws Exception {
+      String url = DMEUtil.executeApiUrl+"/XfProductFamily/get";
+      JSONObject paramsJson = DMERequestBuilder.buildGetByIdRequest(id);
+      DMEResponse<XfProductFamily> response = dmeClient.post(url,paramsJson,
+              new TypeReference<DMEResponse<XfProductFamily>>() {}
+      );
+      if (response != null && response.isSuccess()
+              && response.getData() != null && !response.getData().isEmpty()) {
+          return response.getData().get(0);
+      }else {
+          throw new RuntimeException("查询失败: " + response.getErrors());
+      }
+
+  }
+2.3 新增（POST /manufacture/family）
+URL：/XfProductFamily/create；写入：productFamilyNameCn/En、description；createTime=服务器时间。
+结果：result == SUCCESS → AjaxResult.success()，否则 AjaxResult.error(message)。
+新增Controller:
+  /**
+   * 新增产品族
+   */
+  @PostMapping
+  public AjaxResult add(@RequestBody XfProductFamily xfProductFamily) throws Exception {
+      return toAjax(xfProductFamilyService.insertXfProductFamily(xfProductFamily));
+  }
+新增Service:
+  /**
+   * 新增产品族
+   * 
+   * @param xfProductFamily 产品族
+   * @return 结果
+   */
+  public int insertXfProductFamily(XfProductFamily xfProductFamily) throws Exception;
+新增ServiceImpl:
+/**
+   * 新增产品族
+   * 
+   * @param xfProductFamily 产品族
+   * @return 结果
+   */
+  @Override
+  public int insertXfProductFamily(XfProductFamily xfProductFamily) throws Exception {
+      String url = DMEUtil.executeApiUrl+"/XfProductFamily/create";
+      xfProductFamily.setCreateTime(DateUtils.getNowDate());
+      JSONObject paramsJson = DMERequestBuilder.buildSingleRequest(xfProductFamily);
+      DMEResponse<XfProductFamily> response = dmeClient.post(url,paramsJson,
+              new TypeReference<DMEResponse<XfProductFamily>>() {}
+      );
+      if ("SUCCESS".equalsIgnoreCase(response.getResult())) {
+          return response.getData().size();  // 返回插入了多少条
+      } else {
+          throw new RuntimeException("新增失败: " + response.getErrors());
+      }
+  }
+2.4 修改（PUT /manufacture/family）
+URL：/XfProductFamily/update；写入：携带 id 与被修改字段；updateTime=服务器时间。
+修改Controller:
+  /**
+   * 修改产品族
+   */
+  @PutMapping
+  public AjaxResult edit(@RequestBody XfProductFamily xfProductFamily) throws Exception {
+      return toAjax(xfProductFamilyService.updateXfProductFamily(xfProductFamily));
+  }
+修改Service:
+  /**
+   * 修改产品族
+   * 
+   * @param xfProductFamily 产品族
+   * @return 结果
+   */
+  public int updateXfProductFamily(XfProductFamily xfProductFamily) throws Exception;
+修改ServiceImpl:
+/**
+   * 修改产品族
+   * 
+   * @param xfProductFamily 产品族
+   * @return 结果
+   */
+  @Override
+  public int updateXfProductFamily(XfProductFamily xfProductFamily) throws Exception {
+      xfProductFamily.setUpdateTime(DateUtils.getNowDate());
+      String url = DMEUtil.executeApiUrl+"/XfProductFamily/update";
+      JSONObject paramsJson = DMERequestBuilder.buildSingleRequest(xfProductFamily);
+      DMEResponse<XfProductFamily> response = dmeClient.post(url, paramsJson,
+              new TypeReference<DMEResponse<XfProductFamily>>() {}
+      );
+      if ("SUCCESS".equalsIgnoreCase(response.getResult())) {
+          return response.getData().size();  // 返回更新了多少条
+      } else {
+          throw new RuntimeException("更新失败: " + response.getErrors());
+      }
+  }
+2.5 批量删除（DELETE /manufacture/family/{ids}）
+URL：/XfProductFamily/batchDelete；传扁平 ids 数组；成功返回影响行数。
+批量删除Controller:
+ /**
+   * 批量删除产品族
+   */
+  @DeleteMapping("/{ids}")
+  public AjaxResult remove(@PathVariable String[] ids) throws Exception {
+      return toAjax(xfProductFamilyService.deleteXfProductFamilyByIds(ids));
+  }
+批量删除Service:
+  /**
+   * 批量删除产品族
+   * 
+   * @param ids 需要删除的产品族主键集合
+   * @return 结果
+   */
+  public int deleteXfProductFamilyByIds(String[] ids) throws Exception;
+批量删除ServiceImpl:
+/**
+   * 批量删除产品族
+   * @param ids
+   * @return
+   */
+  public int deleteXfProductFamilyByIds(String[] ids) throws Exception {
+      String url = DMEUtil.executeApiUrl+"/XfProductFamily/batchDelete";
+      JSONObject paramsJson = DMERequestBuilder.buildBatchDeleteRequest(ids);
+  DMEResponse<Object> response = dmeClient.post(url, paramsJson, new TypeReference<DMEResponse<Object>>() {});
+  if (response.isSuccess()) {
+      int affected = response.affectedCount();
+      if (affected >= 1) {
+          return affected;
+      } else {
+          throw new RuntimeException("删除未命中任何记录");
+      }
+  } else {
+      throw new RuntimeException("删除失败: " + response.getErrors());
+  }
+}
+2.6 单个删除（DELETE /manufacture/delete/family/delete/{id}）
+URL：/XfProductFamily/delete；传id字符串；成功返回影响行数1行,失败是0行。
+单个删除Controller:
+ /**
+   * 单个删除产品族
+   */
+  @DeleteMapping("/delete/{id}")
+  public AjaxResult remove(@PathVariable String id) throws Exception {
+      return toAjax(xfProductFamilyService.deleteXfProductFamilyById(id));
+  }
+单个删除Service:
+    /**
+   * 删除产品族信息
+   * 
+   * @param id 产品族主键
+   * @return 结果
+   */
+  public int deleteXfProductFamilyById(String id) throws Exception;
+单个删除ServiceImpl:
+/**
+   * 删除单个产品族
+   * @param id
+   * @return
+   * @throws Exception
+   */
+  public int deleteXfProductFamilyById(String id) throws Exception {
+      String url = DMEUtil.executeApiUrl+"/XfProductFamily/delete";
+      JSONObject paramsJson = DMERequestBuilder.buildDeleteRequest(id);
+  DMEResponse<Object> response = dmeClient.post(url, paramsJson, new TypeReference<DMEResponse<Object>>() {});
+  if (response.isSuccess()) {
+      int affected = response.affectedCount();
+      if (affected >= 1) {
+          return affected;
+      } else {
+          throw new RuntimeException("删除未命中任何记录");
+      }
+  } else {
+      throw new RuntimeException("删除失败: " + response.getErrors());
+  }
+}
+3. 产品模块实现步骤（逐方法落地）
+3.1 列表（GET /manufacture/product/list）
+URL：DMEUtil.executeApiUrl + “/XfProduct01/find/{pageSize}/{pageNum}”
+只查最新：latest=true；按 lastUpdateTime DESC。
+查询条件：productName like、productFamily like、category =。
+返回前调用 XfVersionProduct.extractFileName() 从 extAttrs[name=’File’] 解析下载字段。
+首先分别创建产品管理的controller、Service接口、impl接口实现类等。
+在src/main/java/com/xunfang/manufacture/controller路径下创建名为XfProductController的控制类，如图：
+
+
+继承基础控制类：
+
+
+在com/xunfang/manufacture/service文件夹下创建名为IXfProductService的接口：
+
+
+
+
+在com/xunfang/manufacture/service/impl文件夹下创建名为XfProductServiceImpl的接口实现类：
+
+
+
+
+用implements关键字，让XfProductServiceImpl成为IXfProductService的接口实现类，把 IXfProductService接口中声明的所有方法（比如查询、新增的方法）在XfProductServiceImpl中都补充上具体的业务代码。
+
+
+回到管理的Controller类，注入3个注解，同时声明服务层接口的成员变量，后续通过依赖注入获取服务层的实现对象，从而调用服务层的业务方法：
+
+
+接着添加查询的controller类方法：
+查询Controller:
+
+   /**
+     * 查询产品信息列表
+     */
+    @GetMapping("/list")
+    public TableDataInfo list(QueryProductDTO queryProductDTO, HttpServletRequest request) throws Exception {
+        startPage();
+        List<XfVersionProduct> list = xfProductService.selectXfProductList(queryProductDTO,request);
+        if (list != null) {
+            list.forEach(XfVersionProduct::extractFileName);
+        }
+        return getDataTable(list);
+    }
+查询Service:
+
+    /**
+     * 查询产品信息列表
+     * 
+     * @return 产品信息集合
+     */
+public List<XfVersionProduct> selectXfProductList(QueryProductDTO queryProductDTO, HttpServletRequest request) throws Exception;
+最后在接口实现类中注入@Service，@Autowired或@Resource注解并声明 DMEUtil 类型的成员变量：
+
+
+查询ServiceImpl:
+
+/**
+     * 查询产品信息列表
+     * 
+     * @return 产品信息
+     */
+    @Override
+    public List<XfVersionProduct> selectXfProductList(QueryProductDTO queryProductDTO, HttpServletRequest request) throws Exception {
+        String url = DMEUtil.executeApiUrl+"/XfProduct01/find/" + request.getParameter("pageSize") + "/" + request.getParameter("pageNum");
+
+        JSONObject paramsJson = new JSONObject();
+        JSONObject params = new JSONObject();
+        params.put("characterSet", "UTF8");
+        params.put("decrypt", false);
+        params.put("isPresentAll", true);
+        params.put("presentFields", Arrays.asList(
+                "lifecycleState", "lifecycleTemplate", "lifecyclePhaseList", "reserved"
+        ));
+
+        // 只查最新 + 按更新时间倒序
+        params.put("orderBy", "lastUpdateTime");
+        params.put("sort", "DESC");
+        // 是否需要总数：与他一致可设为 false（不影响返回条数）
+        params.put("isNeedTotal", false);
+        // 公共参数，保留
+        params.put("publicData", "INCLUDE_PUBLIC_DATA");
+
+        // ===== 过滤条件 =====
+        JSONObject filter = new JSONObject();
+        JSONArray conditions = new JSONArray();
+
+        // latest = true 只返回最新版本（关键条件）
+        {
+            JSONObject latestCond = new JSONObject();
+            latestCond.put("conditionName", "latest");
+            latestCond.put("operator", "=");
+            JSONArray val = new JSONArray();
+            val.add(true); // 注意：布尔值，不要加引号
+            latestCond.put("conditionValues", val);
+            conditions.add(latestCond);
+        }
+
+        // partName like
+        if (queryProductDTO.getProductName() != null && !queryProductDTO.getProductName().isEmpty()) {
+            JSONObject c = new JSONObject();
+            c.put("conditionName", "productName");
+            JSONArray v = new JSONArray();
+            v.add(queryProductDTO.getProductName());
+            c.put("conditionValues", v);
+            c.put("ignoreStr", false);
+            c.put("multi", false);
+            c.put("operator", "like");
+            conditions.add(c);
+        }
+
+        // productFamily like
+        if (queryProductDTO.getProductFamily() != null && !queryProductDTO.getProductFamily().isEmpty()) {
+            JSONObject c = new JSONObject();
+            c.put("conditionName", "productFamily");
+            JSONArray v = new JSONArray();
+            v.add(queryProductDTO.getProductFamily());
+            c.put("conditionValues", v);
+            c.put("ignoreStr", false);
+            c.put("multi", false);
+            c.put("operator", "like");
+            conditions.add(c);
+        }
+
+        // category =
+        if (queryProductDTO.getCategory() != null && !queryProductDTO.getCategory().isEmpty()) {
+            JSONObject c = new JSONObject();
+            c.put("conditionName", "category");
+            JSONArray v = new JSONArray();
+            v.add(queryProductDTO.getCategory());
+            c.put("conditionValues", v);
+            c.put("ignoreStr", false);
+            c.put("multi", false);
+            c.put("operator", "=");
+            conditions.add(c);
+        }
+
+        filter.put("conditions", conditions);
+        filter.put("ignoreStr", false);
+        filter.put("joiner", "and");
+        filter.put("multi", false);
+
+        // 把 filter 放进 params
+        params.put("filter", filter);
+        paramsJson.put("params", params);
+
+        // 发起调用
+        DMEResponse<XfVersionProduct> response = dmeClient.post(
+                url,
+                paramsJson,
+                new TypeReference<DMEResponse<XfVersionProduct>>() {}
+        );
+        // 组装分页返回
+        List<XfVersionProduct> list = response.getData();
+        return list;
+    }
+3.2 详情（GET /manufacture/product/{id}）
+URL：/XfProduct01/get；data[0] → XfVersionProduct。
+工作状态统一：setWorkingStateFlex(ws) 解析 map/json/字符串；INWORK → uiWorkingState=CHECKED_OUT；CHECKED_IN 保持。
+附件：从 extAttrs 提取 fileId/fileName/fileDownloadUrl。
+查询详情Controller:
+
+  /**
+   * 获取产品信息详细信息
+   */
+  @GetMapping(value = "/{id}")
+  public AjaxResult getInfo(@PathVariable("id") String id)
+  {
+      return success(xfProductService.selectXfProductById(id));
+  }
+查询详情Service:
+
+  /**
+   * 查询产品信息
+   * 
+   * @param id 产品信息主键
+   * @return 产品信息
+   */
+  public XfProduct selectXfProductById(String id);
+查询详情ServiceImpl:
+
+/**
+   * 查询产品信息
+   * 
+   * @param id 产品信息主键
+   * @return 产品信息
+   */
+  @Override
+  public XfVersionProduct selectXfProductById(String id) {
+
+      String token = RedisUtils.get(DMEUtil.tokenKey);
+      String url = DMEUtil.projectUrl + DMEUtil.executeApiUrl+"/XfProduct01/get";
+
+      // 构造请求
+      JSONObject root = new JSONObject();
+      JSONObject params = new JSONObject();
+      params.put("id", id);
+      root.put("params", params);
+
+      // 请求
+      String res = RequestUtil.requestsPost(url, root.toString(), token);
+      JSONObject jo = JSONObject.parseObject(res);
+
+      // 结果校验
+      if (!"SUCCESS".equalsIgnoreCase(jo.getString("result"))) {
+          throw new RuntimeException("查询失败: " + jo.getJSONArray("errors"));
+      }
+      JSONArray data = jo.getJSONArray("data");
+      if (data == null || data.isEmpty()) {
+          return null;
+      }
+      JSONObject p = data.getJSONObject(0);
+      // 映射到 XfPartVersion（XfPart 的所有字段 + masterId / creator / modifier）
+      XfVersionProduct product = new XfVersionProduct();
+      product.setId(p.getString("id"));                     // 这是“版本对象 id”，用于更新 data.id
+      product.setProductName(p.getString("productName"));
+      product.setProductFamily(p.getString("productFamily"));
+      product.setSpecificationModels(p.getString("specificationModels"));
+      product.setProductDescribe(p.getString("productDescribe"));
+      // 仅取枚举中的 alias  产品类别
+      product.setCategory(dmeClient.pickAlias(p.get("category")));
+
+      // 工作状态透传 & 派生 uiWorkingState（方法内部已处理对象/字符串）
+      product.setWorkingStateFlex(p.get("workingState"));
+      // masterId（检出并更新会用到）
+      JSONObject master = p.getJSONObject("master");
+      if (master != null) {
+          product.setMasterId(master.getString("id"));
+      }
+
+      // 带上创建/修改人
+      product.setCreator(p.getString("creator"));
+      product.setModifier(p.getString("modifier"));
+      String createTime = p.getString("createTime");
+      if (createTime != null) {
+          try {
+              product.setCreateTime(DMEUtil.dmeDateToExamDate(createTime));
+          } catch (Exception ignore) {}
+      }
+      JSONArray extAttrs = p.getJSONArray("extAttrs");
+      if (extAttrs != null && !extAttrs.isEmpty()) {
+          @SuppressWarnings("unchecked")
+          List<Map<String, Object>> list =
+                  (List<Map<String, Object>>) (List<?>) extAttrs.toJavaList(Map.class);
+          product.setExtAttrs(list);
+          product.extractFileName(); // → 会自动填充 fileId / fileName / fileNameNoExt / fileDownloadUrl
+      }
+
+      return product;
+
+  }
+3.3 新增（POST /manufacture/product，multipart）
+方式：FormData，键名 data=JSON，file=可选单文件；后端接收 @RequestPart(“data”) + @RequestPart(“file”)。
+若有文件：先上传至 /upload/uploadFile，回填 fileId 到 extAttrs。
+生命周期（必选）：templateId + operation=create → 取业务操作与目标状态 → 提交时仅传 {lifecycleTemplate:{id}, lifecycleState:{id}}。
+字段：productName、productFamily（名称）、category（CU/ST）、specificationModels、productDescribe、createTime 等。
+新增Controller:
+
+  /**
+   * 新增产品信息
+   */
+  @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+  public AjaxResult add(@RequestPart("data") XfVersionProduct xfVersionProduct, @RequestPart(value = "file", required = false) MultipartFile file) throws Exception
+  {
+      return xfProductService.insertXfProduct(xfVersionProduct,file);
+  }
+新增Service:
+
+  /**
+   * 新增产品信息
+   * 
+   * @param xfVersionProduct 产品信息
+   * @return 结果
+   */
+  public AjaxResult insertXfProduct(XfVersionProduct xfVersionProduct, MultipartFile file) throws Exception;
+新增ServiceImpl:
+
+/**
+   * 新增产品信息
+   * 
+   * @param xfVersionProduct 产品信息
+   * @return 结果
+   */
+  @Override
+  public AjaxResult insertXfProduct(XfVersionProduct xfVersionProduct, MultipartFile file) throws Exception {
+
+      String token = RedisUtils.get(DMEUtil.tokenKey);
+      String url = DMEUtil.projectUrl + DMEUtil.executeApiUrl+ "/XfProduct01/create";
+      String uploadUrl = DMEUtil.basicUrl + "/upload/uploadFile";
+      // 传了单个附件，先上传并得到 fileId
+      String fileId = null;
+      if (file != null && !file.isEmpty()) {
+          //参数MultipartFile file,String token,String uploadUrl,String modelNumber,String modelName
+          // 调用上传方法
+          fileId = UploadUtils.uploadOneFileToIDME(file,token,uploadUrl,XfProduct.modelNumber,XfProduct.modelName);
+      }
+
+      JSONObject paramsJson = new JSONObject();
+      JSONObject params = new JSONObject();
+
+      JSONObject branch = new JSONObject();
+      JSONObject master = new JSONObject();
+      params.put("branch",branch);
+      params.put("master",master);
+      params.put("lifecycleState",xfVersionProduct.getLifecycleState());
+      params.put("lifecycleTemplate", xfVersionProduct.getLifecycleTemplate());
+
+      // 文件：若有 fileId，设置 extAttrs
+      if (fileId != null) {
+          JSONArray value = new JSONArray();
+          JSONObject o = new JSONObject();
+          o.put("id", fileId);
+          value.add(o);
+
+          JSONObject fileAttr = new JSONObject();
+          fileAttr.put("name", "File");
+          fileAttr.put("type", "FILE");
+          fileAttr.put("value", value);
+          JSONArray extAttrs = new JSONArray();
+          extAttrs.add(fileAttr);
+          params.put("extAttrs", extAttrs);
+      }
+
+      params.put("productName", xfVersionProduct.getProductName());
+      params.put("productFamily", xfVersionProduct.getProductFamily());
+      params.put("category", xfVersionProduct.getCategory());
+      params.put("specificationModels", xfVersionProduct.getSpecificationModels());
+      params.put("productDescribe", xfVersionProduct.getProductDescribe());
+      params.put("createTime", DateUtils.getNowDate());
+      params.put("creator", DMEUtil.usingUserName+" "+DMEUtil.usingUserId);
+
+      paramsJson.put("params", params);
+      String res = RequestUtil.requestsPost(url, paramsJson.toString(), token);
+      System.out.println("res:"+res);
+      Object result = JSONObject.parseObject(res).get("result");
+      if("SUCCESS".equals(result.toString())){
+          return AjaxResult.success();
+      }else{
+          return AjaxResult.error();
+      }
+  }
+3.4 修改（PUT /manufacture/product，multipart）
+前置：仅在 CHECKED_OUT（或 INWORK）允许修改；前端已限制，后端建议二次校验。
+策略：A) 上传新文件→替换；B) 未传文件但 clearFile=true→清除；C) 既不上传也不置 clearFile→保持原文件。
+写入：携带版本对象 id（data.id），更新字段与 modifier。
+修改Controller:
+
+ /**
+   * 修改产品信息
+   */
+  @PutMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+  public AjaxResult edit(@RequestPart("data") XfVersionProduct xfVersionProduct,@RequestPart(value = "file", required = false)MultipartFile file) throws Exception {
+      return xfProductService.updateXfProduct(xfVersionProduct,file);
+  }
+修改Service:
+
+  /**
+   * 修改产品信息
+   * 
+   * @param xfVersionProduct 产品信息
+   * @return 结果
+   */
+  public AjaxResult updateXfProduct(XfVersionProduct xfVersionProduct,MultipartFile file) throws Exception;
+修改ServiceImpl:
+
+/**
+   * 修改产品信息
+   * 
+   * @param xfVersionProduct 产品信息
+   * @return 结果
+   */
+  @Override
+  public AjaxResult updateXfProduct(XfVersionProduct xfVersionProduct,MultipartFile file) throws Exception {
+      String token = RedisUtils.get(DMEUtil.tokenKey);
+      String url = DMEUtil.projectUrl +DMEUtil.executeApiUrl+ "/XfProduct01/update";
+
+      String fileId = null;
+      if (file != null && !file.isEmpty()) {
+          String uploadUrl = DMEUtil.basicUrl + "/upload/uploadFile";
+          fileId = UploadUtils.uploadOneFileToIDME(
+                  file, token, uploadUrl, XfProduct.modelNumber, XfProduct.modelName);
+      }
+
+      JSONObject paramsJson = new JSONObject();
+      JSONObject params = new JSONObject();
+      JSONObject branch = new JSONObject();
+      JSONObject master = new JSONObject();
+      params.put("branch",branch);
+      params.put("master",master);
+      params.put("id", xfVersionProduct.getId());
+      params.put("productName", xfVersionProduct.getProductName());
+      params.put("productFamily", xfVersionProduct.getProductFamily());
+      params.put("category", xfVersionProduct.getCategory());
+      params.put("specificationModels", xfVersionProduct.getSpecificationModels());
+      params.put("productDescribe", xfVersionProduct.getProductDescribe());
+      params.put("modifier", DMEUtil.usingUserName + " " + DMEUtil.usingUserId);
+
+      // ===== 三种情况 =====
+      boolean wantClear = Boolean.TRUE.equals(xfVersionProduct.getClearFile());
+
+      if (fileId != null) {
+          // A. 替换原文件：extAttrs = [{ name:"File", type:"FILE", value:[{id:fileId}] }]
+          JSONArray value = new JSONArray();
+          JSONObject o = new JSONObject();
+          o.put("id", fileId);
+          value.add(o);
+
+          JSONObject fileAttr = new JSONObject();
+          fileAttr.put("name", "File");
+          fileAttr.put("type", "FILE");
+          fileAttr.put("value", value);
+          JSONArray extAttrs = new JSONArray();
+          extAttrs.add(fileAttr);
+          params.put("extAttrs", extAttrs);
+      } else if (wantClear) {
+          // B. 删除原文件（未上传新文件）：extAttrs = [{ name:"File", type:"FILE", value:[] }]
+          JSONObject fileAttr = new JSONObject();
+          fileAttr.put("name", "File");
+          fileAttr.put("type", "FILE");
+          fileAttr.put("value", new JSONArray()); // 空数组表示清空
+          JSONArray extAttrs = new JSONArray();
+          extAttrs.add(fileAttr);
+          params.put("extAttrs", extAttrs);
+      }
+      // C. 保持原文件：什么都不做，不传 extAttrs
+
+      paramsJson.put("params", params);
+      String res = RequestUtil.requestsPost(url, paramsJson.toString(), token);
+      Object result = JSONObject.parseObject(res).get("result");
+      return "SUCCESS".equals(String.valueOf(result)) ? AjaxResult.success() : AjaxResult.error();
+
+  }
+3.5 检出（PUT /manufacture/product/checkout）
+请求体：{ masterId, workCopyType:”BOTH”, lifecycleTemplate:{id}, lifecycleState:{id}, modifier }
+成功后 UI 工作状态显示 CHECKED_OUT；进入可编辑阶段。
+检出Controller:
+
+  /**
+   * 检出产品信息
+   * @param xfVersionProduct
+   * @return
+   * @throws Exception
+   */
+  @PutMapping("/checkout")
+  public AjaxResult checkout(@RequestBody XfVersionProduct xfVersionProduct) throws Exception {
+      return xfProductService.checkOut(xfVersionProduct);
+  }
+检出Service:
+
+  /**
+   * 检出产品信息
+   *
+   * @param xfVersionProduct 产品信息
+   * @return 结果
+   */
+  AjaxResult checkOut(XfVersionProduct xfVersionProduct) throws Exception;
+检出ServiceImpl:
+
+/**
+   * 检出产品信息
+   * @param xfVersionProduct 产品信息
+   * @return
+   * @throws Exception
+   */
+  @Override
+  public AjaxResult checkOut(XfVersionProduct xfVersionProduct) throws Exception {
+      String token = RedisUtils.get(DMEUtil.tokenKey);
+      String url = DMEUtil.projectUrl + DMEUtil.executeApiUrl + "/XfProduct01/checkout";
+      JSONObject paramsJson = new JSONObject();
+      JSONObject params = new JSONObject();
+
+      params.put("masterId", xfVersionProduct.getMasterId());
+      params.put("workCopyType", nvl(xfVersionProduct.getWorkCopyType(), "BOTH"));
+      params.put("modifier", DMEUtil.usingUserName + " " + DMEUtil.usingUserId);
+      // 带上生命周期（只传 id）
+      putIfHasId(params, "lifecycleTemplate",
+              xfVersionProduct.getLifecycleTemplate(),
+              xfVersionProduct.getLifecycleTemplateId());
+      putIfHasId(params, "lifecycleState",
+              xfVersionProduct.getLifecycleState(),
+              xfVersionProduct.getLifecycleStateId());
+      paramsJson.put("params", params);
+
+      String res = RequestUtil.requestsPost(url, paramsJson.toString(), token);
+      Object result = JSONObject.parseObject(res).get("result");
+      return "SUCCESS".equals(String.valueOf(result)) ? AjaxResult.success() : AjaxResult.error();
+}
+工具方法:
+
+private static void putIfHasId(JSONObject target, String key, Map<String, Object> srcMap, String fallbackId) {
+      String id = null;
+      if (srcMap != null) {
+          Object v = srcMap.get("id");
+          if (v != null) id = String.valueOf(v);
+      }
+      if (id == null && fallbackId != null && !fallbackId.trim().isEmpty()) {
+          id = fallbackId;
+      }
+      if (id != null && !id.trim().isEmpty()) {
+          JSONObject o = new JSONObject();
+          o.put("id", id);
+          target.put(key, o);
+      }
+  }
+
+  private static String nvl(String v, String def) {
+      return (v == null || v.trim().isEmpty()) ? def : v;
+  }
+3.6 检入（PUT /manufacture/product/checkin）
+请求体：{ viewNo:””, masterId, lifecycleTemplate:{id}, lifecycleState:{id}, modifier }
+检入成功后 UI 工作状态显示 CHECKED_IN；不可直接修改。
+检入Controller:
+
+     /**
+     * 检入部件管理
+     */
+    @PutMapping("/checkin")
+    public AjaxResult checkin(@RequestBody XfVersionProduct xfVersionProduct) throws Exception {
+        return xfProductService.checkIn(xfVersionProduct);
+    }
+检入Service:
+
+    /**
+     * 检入产品信息
+     *
+     * @param xfVersionProduct 产品信息
+     * @return 结果
+     */
+    public AjaxResult checkIn(XfVersionProduct xfVersionProduct) throws Exception;
+检入ServiceImpl:
+
+/**
+     * 检入产品信息
+     * @param xfVersionProduct 产品信息
+     * @return
+     * @throws Exception
+     */
+    @Override
+    public AjaxResult checkIn(XfVersionProduct xfVersionProduct) throws Exception {
+        String token = RedisUtils.get(DMEUtil.tokenKey);
+        String url = DMEUtil.projectUrl + DMEUtil.executeApiUrl + "/XfProduct01/checkin";
+
+        JSONObject paramsJson = new JSONObject();
+        JSONObject params = new JSONObject();
+
+        //  viewNo 按IDME给的传，允许传空串
+        params.put("viewNo", nvl(xfVersionProduct.getViewNo(), ""));
+        params.put("modifier", DMEUtil.usingUserName + " " + DMEUtil.usingUserId);
+        params.put("masterId", xfVersionProduct.getMasterId());
+
+        // ★同样把生命周期带上（只传 id）
+        putIfHasId(params, "lifecycleTemplate",
+                xfVersionProduct.getLifecycleTemplate(),
+                xfVersionProduct.getLifecycleTemplateId());
+        putIfHasId(params, "lifecycleState",
+                xfVersionProduct.getLifecycleState(),
+                xfVersionProduct.getLifecycleStateId());
+
+        paramsJson.put("params", params);
+        String res = RequestUtil.requestsPost(url, paramsJson.toString(), token);
+        Object result = JSONObject.parseObject(res).get("result");
+        return "SUCCESS".equals(String.valueOf(result)) ? AjaxResult.success() : AjaxResult.error();
+    }
+3.7 更新产品生命周期状态（PUT /manufacture/product/updateStatus）
+路由选择：若 workingState=INWORK → 调 /XfProduct01/update；否则 → /XfProduct01/updateByAdmin。
+请求体：{ id 或 master.id, workingState, lifecycleTemplate:{id}, lifecycleState:{id}, modifier }。
+用途：在不改变检出状态下按 operation=edit 推进生命周期。
+更新状态Controller:
+
+  /**
+   * 实例状态升级或更新
+   * @param xfVersionProduct
+   * @return
+   * @throws Exception
+   */
+  @PutMapping("/updateStatus")
+  public AjaxResult updateByAdmin(@RequestBody XfVersionProduct xfVersionProduct) throws Exception {
+      return xfProductService.updateByAdmin(xfVersionProduct);
+  }
+更新状态Service:
+
+  /**
+   * 产品信息状态升级或更新
+   * @param xfVersionProduct
+   * @return
+   */
+  AjaxResult updateByAdmin(XfVersionProduct xfVersionProduct);
+更新状态ServiceImpl:
+
+/**
+   * 产品状态升级
+   * @param xfVersionProduct
+   * @return
+   */
+  @Override
+  public AjaxResult updateByAdmin(XfVersionProduct xfVersionProduct) {
+      String token = RedisUtils.get(DMEUtil.tokenKey);
+      final boolean isInWork = "INWORK".equalsIgnoreCase(xfVersionProduct.getWorkingState());
+
+      final String path = isInWork
+              ? "/XfProduct01/update"
+              : "/XfProduct01/updateByAdmin";
+      String url = DMEUtil.projectUrl +  DMEUtil.executeApiUrl + path;
+
+      // 组装 { "params": { ... } }
+      JSONObject root = new JSONObject();
+      JSONObject params = new JSONObject();
+
+      // modifier
+      params.put("modifier", DMEUtil.usingUserName + " " + DMEUtil.usingUserId);
+
+      // workingState
+      params.put("workingState", xfVersionProduct.getWorkingState());
+
+      // id：优先取实体自己的 id；没有再从 master.id 取
+      Object id = xfVersionProduct.getId();
+      if (id == null && xfVersionProduct.getMaster() != null) {
+          Object mid = xfVersionProduct.getMaster().get("id");
+          if (mid != null) id = mid;
+      }
+      if (id != null) {
+          params.put("id", id);
+      }
+
+      // lifecycleTemplate
+      if (xfVersionProduct.getLifecycleTemplate() != null) {
+          JSONObject lt = new JSONObject();
+          Object ltId = xfVersionProduct.getLifecycleTemplate().get("id");
+          if (ltId != null) lt.put("id", ltId);
+          Object ltClazz = xfVersionProduct.getLifecycleTemplate().get("clazz");
+          if (ltClazz != null) lt.put("clazz", ltClazz);
+          Object ltName = xfVersionProduct.getLifecycleTemplate().get("name");
+          if (ltName != null) lt.put("name", ltName);
+          params.put("lifecycleTemplate", lt);
+      } else if (xfVersionProduct.getLifecycleTemplateId() != null) {
+          JSONObject lt = new JSONObject();
+          lt.put("id", xfVersionProduct.getLifecycleTemplateId());
+          params.put("lifecycleTemplate", lt);
+      }
+
+      // lifecycleState
+      if (xfVersionProduct.getLifecycleState() != null) {
+          JSONObject ls = new JSONObject();
+          Object lsId = xfVersionProduct.getLifecycleState().get("id");
+          if (lsId != null) ls.put("id", lsId);
+          Object lsClazz = xfVersionProduct.getLifecycleState().get("clazz");
+          if (lsClazz != null) ls.put("clazz", lsClazz);
+          Object lsName = xfVersionProduct.getLifecycleState().get("name");
+          if (lsName != null) ls.put("name", lsName);
+          params.put("lifecycleState", ls);
+      } else if (xfVersionProduct.getLifecycleStateId() != null) {
+          JSONObject ls = new JSONObject();
+          ls.put("id", xfVersionProduct.getLifecycleStateId());
+          params.put("lifecycleState", ls);
+      }
+
+      root.put("params", params);
+
+      String res = RequestUtil.requestsPost(url, root.toString(), token);
+      JSONObject resObj = JSONObject.parseObject(res);
+      String result = String.valueOf(resObj.get("result"));
+
+      if ("SUCCESS".equalsIgnoreCase(result)) {
+          return AjaxResult.success();
+      } else {
+          // 尽量把后端的错误信息带出来，便于排查
+          String msg = resObj.getString("message");
+          return AjaxResult.error(msg != null ? msg : "updateByAdmin 调用失败");
+      }
+  }
+3.8 单个删除（DELETE /manufacture/product/{id}）
+URL：DMEUtil.executeApiUrl + “/XfProduct01/delete”（单删也走批删接口）
+语义：{id} 为 masterId；前端/后端禁止删除 CHECKED_OUT/INWORK 的记录。
+单个删除Controller:
+
+      /**
+     * 单个删除产品信息
+     */
+    @DeleteMapping("/delete/{masterId}")
+    public AjaxResult deleteXfProductByProductId(@PathVariable("masterId") String masterId) {
+        return xfProductService.deleteXfProductByProductId(masterId);
+    }
+单个删除Service:
+
+    /**
+     * 删除产品信息信息
+     * 
+     * @param masterId 产品信息主键
+     * @return 结果
+     */
+    public AjaxResult deleteXfProductByProductId(String masterId);
+单个删除ServiceImpl:
+
+@Override
+    public AjaxResult deleteXfProductByProductId(String masterId) {
+        String token = RedisUtils.get(DMEUtil.tokenKey);
+        String url = DMEUtil.projectUrl +DMEUtil.executeApiUrl+ "/XfProduct01/delete";
+        JSONObject paramsJson = new JSONObject();
+        JSONObject params = new JSONObject();
+        params.put("masterId", masterId);
+        paramsJson.put("params", params);
+        String res = RequestUtil.requestsPost(url, paramsJson.toString(), token);
+        JSONObject resJson = JSONObject.parseObject(res);
+
+        Object result = resJson.get("result");
+        JSONArray dataArr = resJson.getJSONArray("data");
+
+        if ("SUCCESS".equalsIgnoreCase(String.valueOf(result))) {
+            // data 有值，取第一个元素作为受影响条数
+            int affected = (dataArr != null && !dataArr.isEmpty()) ? dataArr.getInteger(0) : 0;
+            if (affected >= 1) {
+                return AjaxResult.success("成功删除 " + affected + " 条记录");
+            } else {
+                return AjaxResult.error("删除未命中任何记录");
+            }
+        } else {
+            return AjaxResult.error("删除失败: " + res);
+        }
+    }
+3.9 批量删除（DELETE /manufacture/product/batch/{ids}）
+URL：DMEUtil.executeApiUrl + “/XfProduct01/batchDelete”
+语义：{ids} 为逗号分隔的 masterId 列表；若任一记录处于 CHECKED_OUT/INWORK，整次删除拦截。
+批量删除Controller:
+
+    /**
+     * 批量删除产品信息
+     * 支持多个 masterId（逗号分隔）
+     */
+    @DeleteMapping("/batch/{masterIds}")
+    public AjaxResult remove(@PathVariable("masterIds") String[] masterIds) {
+        return xfProductService.deleteXfProductByProductIds(masterIds);
+    }
+批量删除Service:
+
+    /**
+     * 批量删除产品信息
+     * 
+     * @param masterIds 需要删除的产品信息主键集合
+     * @return 结果
+     */
+    public AjaxResult deleteXfProductByProductIds(String[] masterIds);
+批量删除ServiceImpl:
+
+ @Override
+    public AjaxResult deleteXfProductByProductIds(String[] masterIds) {
+        String token = RedisUtils.get(DMEUtil.tokenKey);
+        String url = DMEUtil.projectUrl  +DMEUtil.executeApiUrl+ "/XfProduct01/batchDelete";
+
+        JSONObject paramsJson = new JSONObject();
+        JSONObject params = new JSONObject();
+        JSONArray paramsMasterIds = new JSONArray();
+        for (String id : masterIds) {
+            paramsMasterIds.add(id);
+        }
+        params.put("masterIds", paramsMasterIds);
+        paramsJson.put("params", params);
+        String res = RequestUtil.requestsPost(url, paramsJson.toString(), token);
+        JSONObject resJson = JSONObject.parseObject(res);
+
+        Object result = resJson.get("result");
+        JSONArray dataArr = resJson.getJSONArray("data");
+
+        if ("SUCCESS".equalsIgnoreCase(String.valueOf(result))) {
+            // data 有值，取第一个元素作为受影响条数
+            int affected = (dataArr != null && !dataArr.isEmpty()) ? dataArr.getInteger(0) : 0;
+            if (affected >= 1) {
+                return AjaxResult.success("成功删除 " + affected + " 条记录");
+            } else {
+                return AjaxResult.error("删除未命中任何记录");
+            }
+        } else {
+            return AjaxResult.error("删除失败: " + res);
+        }
+    }
+4. 生命周期管理（模板、业务操作、状态，检入检出配合）
+4.1 生命周期模板查询（GET /lifecycle/lifecycleTemplateList）
+过滤：master.businessCode like、latest=true（布尔值）；返回模板列表供选择。
+前端新增页：打开弹窗时加载；检出/检入/更新状态弹窗：使用行上的 lifecycleTemplateId 预选。
+首先分别创建产品管理的controller、Service接口、impl接口实现类等。
+在src/main/java/com/xunfang/manufacture/controller路径下创建名为LifecycleTemplateController的控制类，如图：
+
+继承基础控制类：
+
+
+在com/xunfang/manufacture/service文件夹下创建名为ILifecycleTemplateService的接口：
+
+
+
+在com/xunfang/manufacture/service/impl文件夹下创建名为LifecycleTemplateServiceImpl的接口实现类：
+
+
+
+
+用implements关键字，让LifecycleTemplateServiceImpl成为ILifecycleTemplateService的接口实现类，把 ILifecycleTemplateService接口中声明的所有方法（比如查询、新增的方法）在LifecycleTemplateServiceImpl中都补充上具体的业务代码。
+
+
+回到管理的Controller类，注入3个注解，同时声明服务层接口的成员变量，后续通过依赖注入获取服务层的实现对象，从而调用服务层的业务方法：
+
+
+模版查询Controller:
+
+    /**
+     * 查询生命周期模板列表
+     */
+    @GetMapping("/lifecycleTemplateList")
+    public TableDataInfo LifecycleTemplateList(LifecycleTemplate lifecycleTemplate) throws Exception {
+
+        startPage();
+        return lifecycleTemplateService.selectLifecycleTemplateList(lifecycleTemplate);
+    }
+模版查询Service:
+
+    /**
+     * 查询生命周期模板列表
+     *
+     * @param lifecycleTemplate 生命周期模板
+     * @return 生命周期模板集合
+     */
+TableDataInfo selectLifecycleTemplateList(LifecycleTemplate lifecycleTemplate) throws Exception;
+最后在接口实现类中注入@Service，@Autowired或@Resource注解并声明 DMEUtil 类型的成员变量：
+
+
+模版查询ServiceImpl:
+
+ /**
+     * 查询生命周期模板列表
+     * @param lifecycleTemplate
+     * @return
+     */
+    @Override
+    public TableDataInfo selectLifecycleTemplateList(LifecycleTemplate lifecycleTemplate) throws Exception {
+        String url = DMEUtil.commonApiUrl+"/LifecycleTemplate/find/20/1";
+        // === 手工拼装 IDME 所需结构 ===
+        JSONObject root = new JSONObject();
+        JSONObject params = new JSONObject();
+        JSONObject filter = new JSONObject();
+        JSONArray conditions = new JSONArray();
+        filter.put("joiner", "and");
+        // master.businessCode like
+        if (lifecycleTemplate.getMaster() != null) {
+            String bc = lifecycleTemplate.getMaster().getBusinessCode();
+            if (bc != null && !bc.isEmpty()) {
+                JSONObject c1 = new JSONObject();
+                c1.put("conditionName", "master.businessCode");
+                c1.put("operator", "like");
+                // 注意：这是字符串数组
+                c1.put("conditionValues", Collections.singletonList(bc));
+                conditions.add(c1);
+            }
+        }
+        // latest =  —— 注意：这里放布尔值，而不是字符串
+        if (lifecycleTemplate.getLatest() != null) {
+            JSONObject c2 = new JSONObject();
+            c2.put("conditionName", "latest");
+            c2.put("operator", "=");
+            // 直接放 Boolean，保证序列化为 true/false
+            c2.put("conditionValues", Collections.singletonList(lifecycleTemplate.getLatest()));
+            conditions.add(c2);
+        }
+        filter.put("conditions", conditions);
+        params.put("filter", filter);
+        params.put("isNeedTotal", true);
+        root.put("params", params);
+        // === 手工拼装结束 ===
+        DMEResponse<LifecycleTemplate> response = dmeClient.post(
+                url, root, new TypeReference<DMEResponse<LifecycleTemplate>>() {}
+        );
+        return TableDataUtils.buildTableData(response);
+    }
+4.2 获取单个业务操作（GET /lifecycle/lifeBusiness ）
+入参：templateId、operation（create / edit）、stateId 可选。
+新增页默认 operation=create；状态更新固定 operation=edit。
+返回后选择一个 businessOperationId 再查询目标状态。
+获取业务操作Controller:
+
+  /**
+   * 生命周期获取业务操作
+   * @param templateId
+   * @param operation
+   * @return
+   * @throws Exception
+   */
+  @GetMapping("/lifeBusiness")
+  public AjaxResult  selectLifeBusiness(String  templateId, String operation, @RequestParam(value = "stateId", required = false) String stateId) throws Exception{
+
+      return success(lifecycleTemplateService.selectLifeBusiness(templateId,operation,stateId));
+  }
+获取业务操作Service:
+
+  /**
+   * 生命周期获取业务操作
+   * @param templateId
+   * @param operation
+   * @return
+   * @throws Exception
+   */
+  public LifecycleBusiness selectLifeBusiness(String  templateId, String operation,String stateId)
+获取业务操作ServiceImpl:
+
+/**
+   * 生命周期获取业务操作
+   * @param templateId
+   * @param operation
+   * @return
+   * @throws Exception
+   */
+  @Override
+  public LifecycleBusiness selectLifeBusiness(String  templateId, String operation,String stateId) throws Exception {
+      String url = DMEUtil.basicApiUrl+"/LifecycleBusinessOperation/queryLifecycleBusinessOperationByTemplateId";
+      JSONObject jsonObject = DMEVersionRequestBuilder.buildFindLifecycleOperation(templateId, operation,stateId);
+      DMEResponse<LifecycleBusiness> response = dmeClient.post(url, jsonObject,
+              new TypeReference<DMEResponse<LifecycleBusiness>>() {}
+      );
+      if (response != null && response.isSuccess()
+              && response.getData() != null && !response.getData().isEmpty()) {
+          return response.getData().get(0);
+      }else {
+          throw new RuntimeException("查询失败: " + response.getErrors());
+      }
+  }
+4.3 获取业务操作列表（GET /lifecycle//lifeBusinessList）
+入参：templateId、operation（create / edit）、stateId 可选。
+新增页默认 operation=create；状态更新固定 operation=edit。
+返回后选择一个 businessOperationId 再查询目标状态。
+获取业务列表操作Controller:
+
+    /**
+     * 生命周期获取业务操作
+     * @param templateId
+     * @param operation
+     * @return
+     * @throws Exception
+     */
+    @GetMapping("/lifeBusinessList")
+    public AjaxResult  selectLifeBusinessList(String  templateId, String operation, @RequestParam(value = "stateId", required = false) String stateId) throws Exception{
+
+        return success(lifecycleTemplateService.selectLifeBusinessList(templateId,operation,stateId));
+    }
+获取业务列表操作Service:
+
+    /**
+     *
+     * @param templateId
+     * @param operation
+     * @param stateId
+     * @return
+     * @throws Exception
+     */
+    public List<LifecycleBusiness> selectLifeBusinessList(String  templateId, String operation,String stateId) throws Exception;
+获取业务列表操作ServiceImpl:
+/**
+     * 获取生命周期操作业务列表
+     * @param templateId
+     * @param operation
+     * @param stateId
+     * @return
+     * @throws Exception
+     */
+    @Override
+    public List<LifecycleBusiness> selectLifeBusinessList(String templateId, String operation, String stateId) throws Exception {
+        String url = DMEUtil.basicApiUrl+"/LifecycleBusinessOperation/queryLifecycleBusinessOperationByTemplateId";
+        JSONObject jsonObject = DMEVersionRequestBuilder.buildFindLifecycleOperation(templateId, operation,stateId);
+        DMEResponse<LifecycleBusiness> response = dmeClient.post(url, jsonObject,
+                new TypeReference<DMEResponse<LifecycleBusiness>>() {}
+        );
+        if (response != null && response.isSuccess()
+                && response.getData() != null && !response.getData().isEmpty()) {
+            return response.getData();
+        }else {
+            throw new RuntimeException("查询失败: " + response.getErrors());
+        }
+    }
+4.4 获取目标状态（GET /lifecycle/lifeState）
+入参：templateId、businessOperationId、stateId 可选、operation（create|edit）。
+服务实现：create 走 /getCreateTargetState；edit 走 /getTargetState。
+选择结果：仅传 id 到提交接口。
+获取目标状态Controller:
+
+  /**
+   * 获取生命周期状态
+   * @param templateId
+   * @param businessOperationId
+   * @return
+   * @throws Exception
+   */
+  @GetMapping("/lifeState")
+  public AjaxResult selectLifeState(String  templateId, String businessOperationId, @RequestParam(value = "stateId", required = false) String stateId,@RequestParam(defaultValue = "create")String operation)throws Exception{
+
+      return success(lifecycleTemplateService.selectLifeState(templateId,businessOperationId,stateId,operation));
+  }
+获取目标状态Service:
+
+  /**
+   * 获取生命周期状态
+   * @param templateId
+   * @param businessOperationId
+   * @return
+   * @throws Exception
+   */
+  public LifecycleState selectLifeState(String  templateId, String businessOperationId,String stateId,String operation)throws Exception;
+获取目标状态ServiceImpl:
+
+/**
+   * 获取生命周期状态
+   * @param templateId
+   * @param businessOperationId
+   * @return
+   * @throws Exception
+   */
+  @Override
+  public LifecycleState selectLifeState(String templateId, String businessOperationId,String stateId,String operation) throws Exception {
+      final boolean isCreate = "create".equalsIgnoreCase(operation);
+      final String path = isCreate
+              ? "/LifecycleTemplate/getCreateTargetState/1000/1"
+              : "/LifecycleTemplate/getTargetState/1000/1";
+      String url = DMEUtil.basicApiUrl + path;
+      JSONObject jsonObject = DMEVersionRequestBuilder.buildFindLifecycleState(templateId, businessOperationId,stateId);
+      DMEResponse<LifecycleState> response = dmeClient.post(url,jsonObject,
+              new TypeReference<DMEResponse<LifecycleState>>() {}
+      );
+      if (response != null && response.isSuccess()
+              && response.getData() != null && !response.getData().isEmpty()) {
+          return response.getData().get(0);
+      }else {
+          throw new RuntimeException("查询失败: " + response.getErrors());
+      }
+  }
+4.5 文件上传与下载规范
+单文件，小于等于 5MB；白名单：png/jpg/jpeg/gif/bmp/webp/pdf/doc/docx/xls/xlsx/ppt/pptx/txt。
+下载 URL 拼装：/manufacture/file/download?model_name=XfProduct01&model_number=DM05139751&instance_id={id}&file_id={fileId}&attribute_name=file
+同理Part管理的文件下载
+5. 数据模型与枚举（关键字段摘录）
+5.1 XfProductFamily
+字段	说明	类型	备注
+id	主键	String	
+productFamilyCode	编码	String	前端展示 PF{id}
+productFamilyNameCn	中文名称	String	必填
+productFamilyNameEn	英文名称	String	必填
+description	描述	String	
+createTime / updateTime	创建/更新	Date	服务端维护
+5.2 XfProduct / XfVersionProduct（继承）
+字段	说明	类型	备注
+id	版本对象 id	String	更新用
+masterId	主对象 id	String	检出/检入/删除
+productName	名称	String	必填
+productFamily	产品族（名称）	String	必填；当前按名称关联
+category	类别	String	CU=定制，ST=标准
+specificationModels	规格	String	
+productDescribe	描述	String	
+workingState / uiWorkingState	工作状态	String	INWORK→CHECKED_OUT
+lifecycleTemplateId / lifecycleStateId	生命周期	String	仅传 id
+fileId / fileName / fileDownloadUrl	附件派生	String	来自 extAttrs[name=’File’]
+clearFile	清除附件	Boolean	修改时可用
+5.3 枚举与字典
+枚举	取值	说明
+category	CU / ST	CU=定制；ST=标准
+uiWorkingState	CHECKED_IN / CHECKED_OUT / …	前端按钮显隐依据
+文件类型	png,jpg,jpeg,gif,bmp,webp,pdf,doc,docx,xls,xlsx,ppt,pptx,txt	≤5MB
+6.后端接口自测联调与验收步骤（后端视角）
+1.获取 Token（参考公共登录流程），在 Postman 配置 Authorization=token。
+2.产品族 CRUD：list/get/create/update/batchDelete 全量走通。
+3.生命周期链路（新增）：加载模板→取 create 业务→取目标状态→POST /product（multipart）。
+4.检出→修改→检入：PUT /checkout → PUT /product → PUT /checkin。
+5.更新状态（edit）：GET 业务操作→GET 目标状态→PUT /updateStatus。
+6.附件三策略：保持/替换/清除——均能按预期生效并正确下载。
+
+6.1获取项目的token
+调用项目接口需要携带token,获取token的步骤为
+1.新建get请求 : http://127.0.0.1:8080/code,获取code和uuid
+2.获取到code和uuid之后,把把 img 的 Base64码 贴到浏览器Base64转图图片在线工具识别出验证码,在线工具很多如:https://www.67tool.com/images/convert/base64?identity=undefined
+
+
+3.登录获取 token
+请求路径:http://127.0.0.1:8080/auth/login
+请求方法:POST
+参数示例:
+
+{
+  "username": "admin",
+  "password": "admin123",
+  "code": "9",
+  "uuid": "7eee23d381134b10b103dd16b3aabf68"
+}
+测试结果截图:
+
+4.用token请求接口示例:
+Key为authorization,Value为刚才接口获取的token值
+
+
+6.2 产品族管理模块:
+1.查询列表（GET /manufacture/family/list）
+请求路径:http://127.0.0.1:8080/manufacture/family/list?pageNum=1&pageSize=10
+请求方式:GET
+请求参数示例;
+
+
+测试结果截图;
+
+
+控制台成功日志:
+
+2.查询单个产品详情（GET /manufacture/family/{id}）
+请求路径:http://127.0.0.1:8080/manufacture/family/806476905782972416
+请求方式:GET
+请求参数示例;
+
+测试结果截图;
+
+控制台成功日志:
+
+3.新增（POST /manufacture/family）
+请求路径:http://127.0.0.1:8080/manufacture/family
+请求方式:POST
+请求参数示例;
+
+{
+  "productFamilyNameCn": "小米手机17",
+  "productFamilyNameEn": "xiaomi phone 17",
+  "description": "小米17”
+}
+测试结果截图;
+
+控制台成功日志:
+
+4.修改（PUT /manufacture/family）
+请求路径:http://127.0.0.1:8080/manufacture/family
+请求方式:PUT
+请求参数示例;
+
+{
+  "id": "806476905782972416",
+  "productFamilyNameCn": "华为手机P7011",
+  "productFamilyNameEn": "huawei  phone  P70",
+  "description": "华为手机P70"
+}
+测试结果截图;
+
+控制台成功日志:
+
+5.批量删除（DELETE /manufacture/family/{ids}）
+请求路径:http://127.0.0.1:8080/manufacture/family/814436656777007104,814436651748040704
+请求方式:DELETE
+请求参数示例;
+
+参数值拼接在路径后面,逗号分割
+测试结果截图;
+
+控制台成功日志:
+
+
+6.单个删除（DELETE /manufacture/delete/family/{id}）
+请求路径:http://127.0.0.1:8080/manufacture/family/delete/806476905782972416
+请求方式:DELETE
+请求参数示例;
+
+测试结果截图;
+
+控制台成功日志:
+
+
+6.3 产品模块:
+1.列表（GET /manufacture/product/list）
+请求路径:http://127.0.0.1:8080/manufacture/product/list?pageNum=1&pageSize=10
+请求方式:GET
+请求参数示例;
+
+
+可继续添加其它的筛选参数
+测试结果截图;
+
+控制台成功日志:
+
+2.详情（GET /manufacture/product/{id}）
+请求路径:http://127.0.0.1:8080/manufacture/product/806965941316362240
+请求方式:GET
+请求参数示例;
+
+参数直接放在路径后面即可
+测试结果截图;
+
+控制台成功日志:
+
+3.新增（POST /manufacture/product，multipart）
+请求路径:http://127.0.0.1:8080/manufacture/product
+请求方式:POST
+请求参数示例;
+
+data示例:
+
+{"id":null,"productCode":null,"productName":"小米手机17 黑色","productFamily":"小米手机17","category":"ST","productVersion":null,"specificationModels":"小米手机17黑色1 6+512G","productStatus":null,"productDescribe":"小米手机17黑色1 6+512G","createUser":null,"updateUser":null,"lifecycleTemplateId":"804379741174894592","operation":"create","lifecycleStateId":"804374341029466112","lifecycleStateName":null,"createTime":null,"clearFile":false,"fileId":null,"fileName":null,"fileDownloadUrl":null}
+json数据放到data的Value中,file那里选择一个文件
+测试结果截图;
+
+控制台成功日志:
+
+4.修改（PUT /manufacture/product，multipart）
+请求路径:http://127.0.0.1:8080/manufacture/product
+请求方式:PUT
+请求参数示例;
+
+Json示例:
+
+{"createBy":null,"createTime":null,"updateBy":null,"updateTime":null,"remark":null,"id":"806965941316362240","productCode":null,"productName":"华为手机P701234","productFamily":"华为手机P70","category":"ST","specificationModels":"华为手机P70 黑色512G","productStatus":null,"productDescribe":"华为手机P70 黑色512G","masterId":"806834484577050624","creator":"xfidme_admin@xunfang-2017.orgid.top 1008600000617177443","modifier":"xfidme_admin@xunfang-2017.orgid.top 1008600000617177443","workCopyType":null,"workingState":"{\"code\":\"INWORK\",\"cnName\":\"工作中\",\"enName\":\"inwork\",\"alias\":\"INWORK\"}","workingStateCode":"INWORK","workingStateAlias":"INWORK","workingStateCnName":"工作中","uiWorkingState":"CHECKED_OUT","version":null,"iteration":null,"fileId":"806834483838853120","fileName":"IDME考试.docx","fileNameNoExt":"IDME考试","fileDownloadUrl":"/manufacture/file/download?model_name=XfProduct01&model_number=DM05139751&instance_id=806965941316362240&file_id=806834483838853120&attribute_name=file","extAttrs":[{"name":"File","type":"FILE","value":[{"rdmVersion":1,"creator":"xfidme_admin@xunfang-2017.orgid.top","kiaguid":null,"rdmDeleteFlag":0,"docId":null,"chunks":null,"modifier":"xfidme_admin@xunfang-2017.orgid.top","description":null,"className":"XDMFileModel","fileStorageType":"OBS","url":null,"checkCode":null,"securityLevel":"internal","fileStoragePath":"53052c13a7934fbaaef1fba5d6be5ee2/XfProduct01/File/73fae30e-d234-484b-82a4-aea541891bd3.xdmfl","createTime":"2025-09-09T02:32:11.207+0000","fileSize":"657820","name":"IDME考试.docx","rdmExtensionType":"XDMFileModel","id":"806834483838853120","tenant":{"rdmVersion":1,"creator":"xdmAdmin","kiaguid":null,"code":"basicTenant","rdmDeleteFlag":0,"modifier":"xdmAdmin","description":"默认租户","className":"Tenant","nameEn":null,"securityLevel":"internal","createTime":"2025-01-13T09:14:36.202+0000","disableFlag":false,"name":"basicTenant","rdmExtensionType":"Tenant","id":"-1","dataSource":"DefaultDataSource","tenant":null,"lastUpdateTime":"2025-01-13T09:14:36.203+0000"},"fileContent":null,"lastUpdateTime":"2025-09-09T02:32:11.207+0000","status":null}]}],"lifecycleState":null,"lifecycleTemplate":null,"lifecycleStateName":null,"lifecycleStateTagType":null,"lifecycleTemplateId":null,"lifecycleStateId":null,"clearFile":false,"viewNo":null,"displayVersion":null,"categoryCnName":null,"categoryAlias":"ST","master":{"id":"806834484577050624"}}
+测试结果截图;
+
+控制台成功日志:
+
+
+5.检出（PUT /manufacture/product/checkout）
+请求路径:http://127.0.0.1:8080/manufacture/product/checkout
+请求方式:PUT
+请求参数示例;
+
+{
+  "masterId": "813797466284494848",
+  "lifecycleTemplate": {
+    "id": "804379741174894592"
+  },
+  "lifecycleState": {
+    "id": "804375605108805632"
+  },
+  "workCopyType": "BOTH"
+}
+测试结果截图;
+
+控制台成功日志:
+
+
+6.检入（PUT /manufacture/product/checkin）
+请求路径:http://127.0.0.1:8080/manufacture/product/checkin
+请求方式:PUT
+请求参数示例;
+
+{
+  "masterId": "813797466284494848",
+  "lifecycleTemplate": {
+    "id": "804379741174894592"
+  },
+  "lifecycleState": {
+    "id": "804376050984296448"
+  },
+  "viewNo": ""
+}
+测试结果截图;
+
+控制台成功日志:
+
+
+7.更新产品生命周期状态（PUT /manufacture/product/updateStatus）
+请求路径:http://127.0.0.1:8080/manufacture/product/updateStatus
+请求方式:PUT
+请求参数示例;
+
+{
+  "id": "813803062245203968",
+  "workingState": "CHECKED_IN",
+  "lifecycleTemplate": {
+    "id": "804379741174894592"
+  },
+  "lifecycleState": {
+    "id": "804374820560048128"
+  }
+}
+测试结果截图;
+
+控制台成功日志:
+
+
+8.单个删除（DELETE /manufacture/delete/product/{id}）
+请求路径:http://127.0.0.1:8080/manufacture/product/delete/813797466284494848
+请求方式:DELETE
+请求参数示例;
+
+拼接在路径后面即可,这里使用的是materId的值
+测试结果截图;
+
+控制台成功日志:
+
+
+9.批量删除（DELETE /manufacture/product/batch/{ids}）
+请求路径:http://127.0.0.1:8080/manufacture/product/batch/814445320267112449,814445305696100353
+请求方式:DELETE
+请求参数示例;
+
+拼接在路径后面即可,这里使用的是materId的值
+测试结果截图;
+
+控制台成功日志:
+
+
+6.4 产品生命周期:
+1.生命周期模板查询（GET /lifecycle/lifecycleTemplateList）
+请求路径:http://127.0.0.1:8080/manufacture/lifecycle/lifecycleTemplateList?master.businessCode=LCT00000009&latest=true&pageNum=1&pageSize=50
+请求方式:GET
+请求参数示例;
+
+测试结果截图;
+
+控制台成功日志:
+
+2.获取单个业务操作（GET /lifecycle/lifeBusiness ）(包含创建,和业务操作升版等)
+请求路径:http://127.0.0.1:8080/manufacture/lifecycle/lifeBusiness?templateId=804379741174894592&operation=create
+或者:
+http://127.0.0.1:8080/manufacture/lifecycle/lifeBusiness?templateId=804379741174894592&operation=checkout&stateId=804374820560048128
+主要是参数不同
+请求方式:GET
+请求参数示例;
+
+测试结果截图;
+
+控制台成功日志:
+
+3.获取业务操作列表（GET /lifecycle//lifeBusinessList）
+请求路径:http://127.0.0.1:8080/manufacture/lifecycle/lifeBusinessList?templateId=804379741174894592&operation=edit
+请求方式:GET
+请求参数示例;
+
+测试结果截图;
+
+控制台成功日志:
+
+4.获取目标状态（GET /lifecycle/lifeState）
+请求路径:http://127.0.0.1:8080/manufacture/lifecycle/lifeState?templateId=804379741174894592&businessOperationId=804401822365126656
+请求方式:GET
+请求参数示例;
+
+测试结果截图;
+
+控制台成功日志:
+
+
+7. 模块 DoD 与 常见问题
+7.1 DoD（完成定义）
+所有接口 200，错误透明；分页 total 优先 pageInfo.totalRows。
+生命周期相关接口可用：模板/业务/状态/检出/检入/更新状态。
+状态保护：CHECKED_OUT 禁止删除；修改仅 CHECKED_OUT。
+下载链接可用；文件校验严格。
+7.2 常见问题
+现象	可能原因	处理建议
+列表无过滤效果	filter 未放入 params	params.put(‘filter’, filter)
+修改无效	未检出或未携带版本 id	先检出；修改时带 data.id
+无法删除	选择集中含 CHECKED_OUT	前端禁用，后端返回业务错误
+生命周期状态为空	未传 businessOperationId 查询状态	先查业务操作再查状态
+文件下载 404	fileId/instance_id/model 配置错误	按规范拼装下载 URL
