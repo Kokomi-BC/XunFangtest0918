@@ -56,7 +56,6 @@ public class RequestUtil {
         long a = System.currentTimeMillis();
         System.err.println("=======请求开始时间：" + DateUtils.parseDateToStr(DateUtils.YYYY_MM_DD_HH_MM_SS, new Date()));
         System.err.println("=======请求url：" + url);
-        System.err.println("=======请求token：" + token);
         System.err.println("=======请求参数：" + entity);
 
         HttpPost httpget = new HttpPost(url);

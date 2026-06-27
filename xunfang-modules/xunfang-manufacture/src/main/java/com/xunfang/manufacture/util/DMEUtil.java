@@ -68,6 +68,12 @@ public class DMEUtil {
     public static final String basicUrl =
             "http://642f01d8-ca51-4a28-9000-904a4f1e5072.xdm.runtime.cn-north-4.huaweicloud-idme.com/rdm_9fc851035ebc468fb3e71455d6664f24_app";
 
+    /** 基础 API 前缀（生命周期业务操作等） */
+    public static final String basicApiUrl = basicUrl + "/services/rdm/basic/api/";
+
+    /** 通用 API 前缀（生命周期模板查询等） */
+    public static final String commonApiUrl = basicUrl + "/services/rdm/common/api/";
+
     /** iDME 应用 ID */
     public static final String applicationId = "rdm_9fc851035ebc468fb3e71455d6664f24_app";
 

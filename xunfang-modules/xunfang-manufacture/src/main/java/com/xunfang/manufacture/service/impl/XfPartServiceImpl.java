@@ -328,7 +328,7 @@ public class XfPartServiceImpl implements IXfPartService {
         if (file != null && !file.isEmpty()) {
             String uploadUrl = DMEUtil.basicUrl + "/services/rdm/basic/api/upload/uploadFile";
             fileId = UploadUtils.uploadOneFileToIDME(file, token, uploadUrl,
-                    XfPart.modelNumber, XfPart.modelName);
+                    XfPart.modelCode, XfPart.modelName);
         }
 
         JSONObject paramsJson = new JSONObject();

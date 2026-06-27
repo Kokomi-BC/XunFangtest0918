@@ -45,6 +45,18 @@ public class DMEClient {
         DMEResponse<T> response = new DMEResponse<>();
         response.setResult(root.getString("result"));
 
+        // errors —— 解析错误信息
+        if (root.containsKey("errors") && root.get("errors") != null) {
+            com.alibaba.fastjson.JSONArray errArr = root.getJSONArray("errors");
+            if (errArr != null && !errArr.isEmpty()) {
+                java.util.List<Object> errList = new java.util.ArrayList<>();
+                for (int i = 0; i < errArr.size(); i++) {
+                    errList.add(errArr.get(i));
+                }
+                response.setErrors(errList);
+            }
+        }
+
         // pageInfo
         JSONObject piJson = root.getJSONObject("pageInfo");
         if (piJson != null) {

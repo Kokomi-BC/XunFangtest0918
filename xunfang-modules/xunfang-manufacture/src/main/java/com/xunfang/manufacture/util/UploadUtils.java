@@ -1,6 +1,5 @@
 package com.xunfang.manufacture.util;
 
-import com.xunfang.manufacture.domain.XfPart;
 import org.apache.http.HttpEntity;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpPost;
@@ -27,18 +26,18 @@ public class UploadUtils {
     private static final Logger logger = LoggerFactory.getLogger(UploadUtils.class);
 
     /**
-     * 上传单个文件到 iDME
+     * 上传单个文件到 iDME（指定 modelCode）
      *
      * @param file        前端上传的文件
      * @param token       iDME 认证 Token
      * @param uploadUrl   上传接口完整 URL（如 basicUrl + "/upload/uploadFile"）
-     * @param modelNumber 模型编码
-     * @param modelName   模型名称
+     * @param modelCode   模型数字编码（如 DM08699761）
+     * @param modelName   模型名称（如 XfPart17）
      * @return fileId（上传成功后 iDME 返回的文件 ID）
      * @throws Exception 上传失败时抛出
      */
     public static String uploadOneFileToIDME(MultipartFile file, String token,
-                                              String uploadUrl, String modelNumber, String modelName)
+                                              String uploadUrl, String modelCode, String modelName)
             throws Exception {
         if (file == null || file.isEmpty()) {
             return null;
@@ -49,7 +48,7 @@ public class UploadUtils {
                 + "?applicationId=" + URLEncoder.encode(DMEUtil.appIdShort, "UTF-8")
                 + "&username=" + URLEncoder.encode(
                         DMEUtil.usingUserName + "@sxxgyrj.orgid.top " + DMEUtil.usingUserId, "UTF-8")
-                + "&modelNumber=" + URLEncoder.encode(XfPart.modelCode, "UTF-8")
+                + "&modelNumber=" + URLEncoder.encode(modelCode, "UTF-8")
                 + "&modelName=" + URLEncoder.encode(modelName, "UTF-8")
                 + "&attributeName=File"
                 + "&storageType=0"
